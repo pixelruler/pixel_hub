@@ -1,0 +1,844 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Pixel hub (Oneblock)",
+   Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
+   LoadingTitle = "Pixel hub",
+   LoadingSubtitle = "Pixel is peak",
+   ShowText = "Rayfield", -- for mobile users to unhide rayfield, change if you'd like
+   Theme = "Default", -- Check https://docs.sirius.menu/rayfield/configuration/themes
+
+   ToggleUIKeybind = "K", -- The keybind to toggle the UI visibility (string like "K" or Enum.KeyCode)
+
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false, -- Prevents Rayfield from warning when the script has a version mismatch with the interface
+
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = nil, -- Create a custom folder for your hub/game
+      FileName = "Big Hub"
+   },
+
+   Discord = {
+      Enabled = false, -- Prompt the user to join your Discord server if their executor supports it
+      Invite = "noinvitelink", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ ABCD would be ABCD
+      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
+   },
+
+   KeySystem = false, -- Set this to true to use our key system
+   KeySettings = {
+      Title = "Untitled",
+      Subtitle = "Key System",
+      Note = "No method of obtaining the key is provided", -- Use this to tell the user how to get a key
+      FileName = "Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
+      SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
+      GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
+      Key = {"Hello"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
+   }
+})
+
+local Tab = Window:CreateTab("Auto break block", 4483362458) -- Title, Image
+
+local Section = Tab:CreateSection("Auto break block ")
+
+local Button = Tab:CreateButton({
+   Name = "Auto mine ",
+   Callback = function()
+   -- AutoMine LocalScript (with debug)
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui")
+
+-- config
+local POLL_DELAY = 0.18
+local TOOL_TIERS = {"Diamond","Gold","Iron","Stone","Wood","Wooden"}
+local POLL_RADIUS = 200
+
+-- block → tool map
+local BlockTools = {
+    OakLog="Axe", BirchLog="Axe", AcaciaLog="Axe", CherryLog="Axe", BloodwoodLog="Axe", TutorialOakLog="Axe",
+    OakLeaf="Any", AcaciaLeaf="Any", CherryLeaf="Any", BloodwoodLeaf="Any",
+    Grass="Shovel", Dirt="Shovel", Gravel="Shovel", Sand="Shovel",
+    Stone="Pickaxe", Diorite="Pickaxe", Granite="Pickaxe", Blackstone="Pickaxe",
+    CoalOre="Pickaxe", IronOre="Pickaxe", CopperOre="Pickaxe", GoldOre="Pickaxe",
+    EmeraldOre="Pickaxe", DiamondOre="Pickaxe"
+}
+
+-- UI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AutoMineUI"
+screenGui.Parent = PlayerGui
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0,140,0,40)
+toggleButton.AnchorPoint = Vector2.new(1,0)
+toggleButton.Position = UDim2.new(1,-10,0,10)
+toggleButton.Text = "AutoMine: OFF"
+toggleButton.BackgroundColor3 = Color3.fromRGB(80,80,80)
+toggleButton.TextColor3 = Color3.new(1,1,1)
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.TextSize = 18
+toggleButton.Parent = screenGui
+toggleButton.Active = true
+toggleButton.Draggable = true
+
+-- runtime state
+local running = false
+local lastBlockIdentifier
+
+-- character state
+local char = player.Character or player.CharacterAdded:Wait()
+local humanoid = char:WaitForChild("Humanoid")
+player.CharacterAdded:Connect(function(c)
+    char = c
+    humanoid = char:WaitForChild("Humanoid")
+end)
+
+-- helpers
+local function lower(s) return (s or ""):lower() end
+
+local function findNearestBlock()
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local best, bestDist
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj:FindFirstChild("BlockInfo") then
+            local h = obj.BlockInfo:FindFirstChild("Health")
+            if h and h.Value > 0 then
+                local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                if part then
+                    local d = (part.Position - root.Position).Magnitude
+                    if d < (bestDist or math.huge) and d <= POLL_RADIUS then
+                        best = obj
+                        bestDist = d
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
+local function inferToolTypeFromName(name)
+    local l = lower(name or "")
+    if l:find("log") or l:find("wood") or l:find("tree") then return "Axe" end
+    if l:find("leaf") then return "Any" end
+    if l:find("dirt") or l:find("grass") or l:find("sand") or l:find("gravel") or l:find("clay") then return "Shovel" end
+    if l:find("ore") or l:find("stone") or l:find("granite") or l:find("diorite") or l:find("blackstone") then return "Pickaxe" end
+    return "Any"
+end
+
+local function findBestToolForType(toolType)
+    local containers = {char, player:WaitForChild("Backpack")}
+    for _, tier in ipairs(TOOL_TIERS) do
+        for _, c in ipairs(containers) do
+            for _, t in ipairs(c:GetChildren()) do
+                if t:IsA("Tool") then
+                    local n = lower(t.Name)
+                    if (toolType=="Any" or n:find(lower(toolType))) and n:find(lower(tier)) then
+                        return t
+                    end
+                end
+            end
+        end
+    end
+    for _, c in ipairs(containers) do
+        for _, t in ipairs(c:GetChildren()) do
+            if t:IsA("Tool") and (toolType=="Any" or lower(t.Name):find(lower(toolType))) then
+                return t
+            end
+        end
+    end
+    return nil
+end
+
+local function equipTool(tool)
+    if not tool or tool.Parent==char then return tool end
+    if humanoid then
+        pcall(function() humanoid:EquipTool(tool) end)
+        task.wait(0.2)
+    end
+    return (tool.Parent==char) and tool or nil
+end
+
+-- builds args packet (your original function)
+local function buildToolHitArgs(blockModel, tool)
+    if not blockModel or not tool then return nil end
+    local blockInfo = blockModel:FindFirstChild("BlockInfo")
+    if not blockInfo then return nil end
+    local healthObj = blockInfo:FindFirstChild("Health")
+    local maxObj = blockInfo:FindFirstChild("MaxHealth")
+    local hardnessObj = blockInfo:FindFirstChild("BlockHardness")
+    local healthVal = healthObj and healthObj.Value or 1
+    local maxVal = maxObj and maxObj.Value or nil
+    local hardness = hardnessObj and hardnessObj.Value or "Medium"
+    local part = blockModel.PrimaryPart or blockModel:FindFirstChildWhichIsA("BasePart")
+    if not part then return nil end
+    local pos = part.Position
+    local healthBar = blockModel:FindFirstChild("HealthBar")
+    local args = {
+        [1] = {
+            [1] = {
+                ["blockInfoFolder"] = blockInfo,
+                ["health"] = healthVal,
+                ["hardness"] = hardness,
+                ["object"] = blockModel,
+                ["maxHealthValue"] = maxObj,
+                ["position"] = pos,
+                ["healthBarGui"] = healthBar,
+                ["maxHealth"] = maxVal,
+                ["healthValue"] = healthObj
+            }
+        },
+        [2] = tool.Name
+    }
+    return args
+end
+
+-- pretty printer for debug
+local function dumpTable(t, indent)
+    indent = indent or 0
+    if type(t) ~= "table" then return tostring(t) end
+    local s = "{\n"
+    local pad = string.rep(" ", indent+2)
+    for k,v in pairs(t) do
+        s = s .. pad .. "["..tostring(k).."] = " .. dumpTable(v, indent+2) .. ",\n"
+    end
+    return s .. string.rep(" ", indent) .. "}"
+end
+
+local function mineBlock(block)
+    if not block or not block.Parent then return end
+    local preferred = BlockTools[block.Name] or inferToolTypeFromName(block.Name)
+    local tool = findBestToolForType(preferred)
+    tool = equipTool(tool)
+    if not tool then return end
+
+    local remote = tool:FindFirstChild("ToolHit") or tool:FindFirstChildWhichIsA("RemoteEvent")
+    if not remote then
+        warn("No ToolHit remote for:", tool.Name)
+        return
+    end
+
+    while block and block.Parent and block:FindFirstChild("BlockInfo") do
+        local h = block.BlockInfo:FindFirstChild("Health")
+        if not h or h.Value <= 0 then break end
+
+        local args = buildToolHitArgs(block, tool)
+        if args then
+            print("AutoMine firing with args:")
+            print(dumpTable(args)) -- DEBUG PRINT
+            pcall(function() remote:FireServer(unpack(args)) end)
+        end
+
+        task.wait(POLL_DELAY)
+    end
+end
+
+-- toggle
+toggleButton.MouseButton1Click:Connect(function()
+    running = not running
+    toggleButton.Text = "AutoMine: " .. (running and "ON" or "OFF")
+    toggleButton.BackgroundColor3 = running and Color3.fromRGB(0,170,0) or Color3.fromRGB(80,80,80)
+end)
+
+-- loop
+task.spawn(function()
+    while true do
+        if running then
+            local block = findNearestBlock()
+            if block then
+                local id = block:GetFullName()
+                if id ~= lastBlockIdentifier then
+                    print("Mining:", block.Name)
+                    lastBlockIdentifier = id
+                end
+                mineBlock(block)
+                lastBlockIdentifier = nil
+            end
+        end
+        task.wait(0.15)
+    end
+end)
+
+   -- The function that takes place when the button is pressed
+   end,
+})
+
+local Divider = Tab:CreateDivider()
+
+local Section = Tab:CreateSection("Teleport to block")
+local Button = Tab:CreateButton({
+   Name = "Teleport to oneblock",
+   Callback = function()
+   local Players = game:GetService("Players")
+
+-- Define the target CFrame with adjusted Y-coordinate (increased by 5 units)
+local targetCFrame = CFrame.new(
+    0, 6 + 5, 7.62939453e-06,  -- Position (x, y + 5, z)
+    1, 0, 0,                    -- Rotation matrix (unchanged)
+    0, 1, 0,
+    0, 0, 1
+)
+
+-- Function to teleport a player
+local function teleportPlayer(player)
+    -- Check if the player has a character and HumanoidRootPart
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        -- Teleport the player's HumanoidRootPart to the target CFrame
+        player.Character.HumanoidRootPart.CFrame = targetCFrame
+    end
+end
+
+-- Connect the teleport function to when a player joins
+Players.PlayerAdded:Connect(function(player)
+    -- Wait for the player's character to load
+    player.CharacterAdded:Connect(function()
+        -- Small delay to ensure character is fully loaded
+        wait(0.1)
+        teleportPlayer(player)
+    end)
+end)
+
+-- Teleport all existing players (useful for testing)
+for _, player in pairs(Players:GetPlayers()) do
+    if player.Character then
+        teleportPlayer(player)
+    end
+end
+   -- The function that takes place when the button is pressed
+   end,
+})
+
+local Tab = Window:CreateTab("Teleports", 4483362458) -- Title, Image
+local Section = Tab:CreateSection("Mini island teleports")
+local Button = Tab:CreateButton({
+   Name = "Mini oak island",
+   Callback = function()
+   local Players = game:GetService("Players")
+
+-- Define the target CFrame with adjusted Y-coordinate (increased by 5 units)
+local targetCFrame = CFrame.new(
+    -192.034256, 7.10042572 + 5, 192.095718,  -- Position (x, y + 5, z)
+    -0.465547323, 0, 0.885022998,              -- Rotation matrix (unchanged)
+    0, 1, 0,
+    -0.885022998, 0, -0.465547323
+)
+
+-- Function to teleport a player
+local function teleportPlayer(player)
+    -- Check if the player has a character and HumanoidRootPart
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        -- Teleport the player's HumanoidRootPart to the target CFrame
+        player.Character.HumanoidRootPart.CFrame = targetCFrame
+    end
+end
+
+-- Connect the teleport function to when a player joins
+Players.PlayerAdded:Connect(function(player)
+    -- Wait for the player's character to load
+    player.CharacterAdded:Connect(function()
+        -- Small delay to ensure character is fully loaded
+        wait(0.1)
+        teleportPlayer(player)
+    end)
+end)
+
+-- Teleport all existing players (useful for testing)
+for _, player in pairs(Players:GetPlayers()) do
+    if player.Character then
+        teleportPlayer(player)
+    end
+end
+   -- The function that takes place when the button is pressed
+   end,
+})
+
+local Button = Tab:CreateButton({
+   Name = "Mini island spruce",
+   Callback = function()
+   local Players = game:GetService("Players")
+
+-- Define the target CFrame with adjusted Y-coordinate (increased by 5 units)
+local targetCFrame = CFrame.new(
+    -194.392639, 5.78660583 + 5, -176.257843,  -- Position (x, y + 5, z)
+    -0.980700016, 0, 0.195518643,              -- Rotation matrix (unchanged)
+    0, 1, 0,
+    -0.195518643, 0, -0.980700016
+)
+
+-- Function to teleport a player
+local function teleportPlayer(player)
+    -- Check if the player has a character and HumanoidRootPart
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        -- Teleport the player's HumanoidRootPart to the target CFrame
+        player.Character.HumanoidRootPart.CFrame = targetCFrame
+    end
+end
+
+-- Connect the teleport function to when a player joins
+Players.PlayerAdded:Connect(function(player)
+    -- Wait for the player's character to load
+    player.CharacterAdded:Connect(function()
+        -- Small delay to ensure character is fully loaded
+        wait(0.1)
+        teleportPlayer(player)
+    end)
+end)
+
+-- Teleport all existing players (useful for testing)
+for _, player in pairs(Players:GetPlayers()) do
+    if player.Character then
+        teleportPlayer(player)
+    end
+end
+   -- The function that takes place when the button is pressed
+   end,
+})
+
+local Button = Tab:CreateButton({
+   Name = "Mini island camping",
+   Callback = function()
+   local Players = game:GetService("Players")
+
+-- Define the target CFrame with adjusted Y-coordinate (increased by 5 units)
+local targetCFrame = CFrame.new(
+    205.398773, 5.25004959 + 5, -179.722076,  -- Position (x, y + 5, z)
+    -0.647635341, 0, -0.761950433,             -- Rotation matrix (unchanged)
+    0, 1, 0,
+    0.761950433, 0, -0.647635341
+)
+
+-- Function to teleport a player
+local function teleportPlayer(player)
+    -- Check if the player has a character and HumanoidRootPart
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        -- Teleport the player's HumanoidRootPart to the target CFrame
+        player.Character.HumanoidRootPart.CFrame = targetCFrame
+    end
+end
+
+-- Connect the teleport function to when a player joins
+Players.PlayerAdded:Connect(function(player)
+    -- Wait for the player's character to load
+    player.CharacterAdded:Connect(function()
+        -- Small delay to ensure character is fully loaded
+        wait(0.1)
+        teleportPlayer(player)
+    end)
+end)
+
+-- Teleport all existing players (useful for testing)
+for _, player in pairs(Players:GetPlayers()) do
+    if player.Character then
+        teleportPlayer(player)
+    end
+end
+
+   -- The function that takes place when the button is pressed
+   end,
+})
+
+local Button = Tab:CreateButton({
+   Name = "Mini island cherry",
+   Callback = function()
+   local Players = game:GetService("Players")
+
+-- Define the target CFrame with adjusted Y-coordinate (increased by 5 units)
+local targetCFrame = CFrame.new(
+    191.914368, 9.25850677 + 5, 192.567719,  -- Position (x, y + 5, z)
+    -0.443276167, 0, -0.896385133,            -- Rotation matrix (unchanged)
+    0, 1, 0,
+    0.896385133, 0, -0.443276167
+)
+
+-- Function to teleport a player
+local function teleportPlayer(player)
+    -- Check if the player has a character and HumanoidRootPart
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        -- Teleport the player's HumanoidRootPart to the target CFrame
+        player.Character.HumanoidRootPart.CFrame = targetCFrame
+    end
+end
+
+-- Connect the teleport function to when a player joins
+Players.PlayerAdded:Connect(function(player)
+    -- Wait for the player's character to load
+    player.CharacterAdded:Connect(function()
+        -- Small delay to ensure character is fully loaded
+        wait(0.1)
+        teleportPlayer(player)
+    end)
+end)
+
+-- Teleport all existing players (useful for testing)
+for _, player in pairs(Players:GetPlayers()) do
+    if player.Character then
+        teleportPlayer(player)
+    end
+end
+   -- The function that takes place when the button is pressed
+   end,
+})
+local Section = Tab:CreateSection("Main island cherry")
+local Button = Tab:CreateButton({
+   Name = "Diamond chest cherry",
+   Callback = function()
+   local Players = game:GetService("Players")
+
+-- Define the target CFrame with adjusted Y-coordinate (increased by 5 units)
+local targetCFrame = CFrame.new(
+    -773.056396, 32.4501686 + 5, 37.5996094,  -- Position (x, y + 5, z)
+    0.547708273, -0, -0.836669385,            -- Rotation matrix (unchanged)
+    0, 1, -0,
+    0.836669385, 0, 0.547708273
+)
+
+-- Function to teleport a player
+local function teleportPlayer(player)
+    -- Check if the player has a character and HumanoidRootPart
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        -- Teleport the player's HumanoidRootPart to the target CFrame
+        player.Character.HumanoidRootPart.CFrame = targetCFrame
+    end
+end
+
+-- Connect the teleport function to when a player joins
+Players.PlayerAdded:Connect(function(player)
+    -- Wait for the player's character to load
+    player.CharacterAdded:Connect(function()
+        -- Small delay to ensure character is fully loaded
+        wait(0.1)
+        teleportPlayer(player)
+    end)
+end)
+
+-- Teleport all existing players (useful for testing)
+for _, player in pairs(Players:GetPlayers()) do
+    if player.Character then
+        teleportPlayer(player)
+    end
+end
+   -- The function that takes place when the button is pressed
+   end,
+})
+
+local Button = Tab:CreateButton({
+   Name = "Gold chest cherry ",
+   Callback = function()
+   local Players = game:GetService("Players")
+
+-- Define the target CFrame with adjusted Y-coordinate (increased by 5 units)
+local targetCFrame = CFrame.new(
+    -692.893555, 5.75016499 + 5, 48.8521118,  -- Position (x, y + 5, z)
+    -0.649733663, 0, 0.760161877,             -- Rotation matrix (unchanged)
+    0, 1, 0,
+    -0.760161877, 0, -0.649733663
+)
+
+-- Function to teleport a player
+local function teleportPlayer(player)
+    -- Check if the player has a character and HumanoidRootPart
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        -- Teleport the player's HumanoidRootPart to the target CFrame
+        player.Character.HumanoidRootPart.CFrame = targetCFrame
+    end
+end
+
+-- Connect the teleport function to when a player joins
+Players.PlayerAdded:Connect(function(player)
+    -- Wait for the player's character to load
+    player.CharacterAdded:Connect(function()
+        -- Small delay to ensure character is fully loaded
+        wait(0.1)
+        teleportPlayer(player)
+    end)
+end)
+
+-- Teleport all existing players (useful for testing)
+for _, player in pairs(Players:GetPlayers()) do
+    if player.Character then
+        teleportPlayer(player)
+    end
+end
+   -- The function that takes place when the button is pressed
+   end,
+})
+
+local Button = Tab:CreateButton({
+   Name = "Gold chest cherry (tower)",
+   Callback = function()
+   local Players = game:GetService("Players")
+
+-- Define the target CFrame with adjusted Y-coordinate (increased by 5 units)
+local targetCFrame = CFrame.new(
+    -744.773071, 59.1490631 + 5, -52.706604,  -- Position (x, y + 5, z)
+    0.645312607, 0, 0.763918579,             -- Rotation matrix (unchanged)
+    0, 1, 0,
+    -0.763918579, 0, 0.645312607
+)
+
+-- Function to teleport a player
+local function teleportPlayer(player)
+    -- Check if the player has a character and HumanoidRootPart
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        -- Teleport the player's HumanoidRootPart to the target CFrame
+        player.Character.HumanoidRootPart.CFrame = targetCFrame
+    end
+end
+
+-- Connect the teleport function to when a player joins
+Players.PlayerAdded:Connect(function(player)
+    -- Wait for the player's character to load
+    player.CharacterAdded:Connect(function()
+        -- Small delay to ensure character is fully loaded
+        wait(0.1)
+        teleportPlayer(player)
+    end)
+end)
+
+-- Teleport all existing players (useful for testing)
+for _, player in pairs(Players:GetPlayers()) do
+    if player.Character then
+        teleportPlayer(player)
+    end
+end
+ 
+   -- The function that takes place when the button is pressed
+   end,
+})
+
+local Tab = Window:CreateTab("Auto buy", 4483362458) -- Title, Image
+local Section = Tab:CreateSection("Auto buy workbench")
+
+-- Farm Stand
+local ButtonFarmStand = Tab:CreateButton({
+   Name = "Buy Farm Stand",
+   Callback = function()
+       local args = {"Farm Stand", 1000}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- Forge Workbench
+local ButtonForgeWorkbench = Tab:CreateButton({
+   Name = "Buy Forge Workbench",
+   Callback = function()
+       local args = {"Forge Workbench", 2500}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- General Workbench
+local ButtonGeneralWorkbench = Tab:CreateButton({
+   Name = "Buy General Workbench",
+   Callback = function()
+       local args = {"General Workbench", 2000}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- Platform Workbench
+local ButtonPlatformWorkbench = Tab:CreateButton({
+   Name = "Buy Platform Workbench",
+   Callback = function()
+       local args = {"Platform Workbench", 1500}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- Botanist Workbench
+local ButtonBotanistWorkbench = Tab:CreateButton({
+   Name = "Buy Botanist Workbench",
+   Callback = function()
+       local args = {"Botanist Workbench", 1600}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- Cooking Pot
+local ButtonCookingPot = Tab:CreateButton({
+   Name = "Buy Cooking Pot",
+   Callback = function()
+       local args = {"Cooking Pot", 1500}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- Stone Smelter
+local ButtonStoneSmelter = Tab:CreateButton({
+   Name = "Buy Stone Smelter",
+   Callback = function()
+       local args = {"Stone Smelter", 1400}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- Wood Cutter
+local ButtonWoodCutter = Tab:CreateButton({
+   Name = "Buy Wood Cutter",
+   Callback = function()
+       local args = {"Wood Cutter", 1250}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- Bandage
+local ButtonBandage = Tab:CreateButton({
+   Name = "Buy Bandage",
+   Callback = function()
+       local args = {"Bandage", 1500}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- Pickup Tool
+local ButtonPickupTool = Tab:CreateButton({
+   Name = "Buy Pickup Tool",
+   Callback = function()
+       local args = {"Pickup Tool", 900}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- Diamond Magnet
+local ButtonDiamondMagnet = Tab:CreateButton({
+   Name = "Buy Diamond Magnet",
+   Callback = function()
+       local args = {"Diamond Magnet", 750}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- Gold Magnet
+local ButtonGoldMagnet = Tab:CreateButton({
+   Name = "Buy Gold Magnet",
+   Callback = function()
+       local args = {"Gold Magnet", 500}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- Iron Magnet
+local ButtonIronMagnet = Tab:CreateButton({
+   Name = "Buy Iron Magnet",
+   Callback = function()
+       local args = {"Iron Magnet", 350}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- Copper Magnet
+local ButtonCopperMagnet = Tab:CreateButton({
+   Name = "Buy Copper Magnet",
+   Callback = function()
+       local args = {"Copper Magnet", 200}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+-- Magnet
+local ButtonMagnet = Tab:CreateButton({
+   Name = "Buy Magnet",
+   Callback = function()
+       local args = {"Magnet", 100}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseGeneral"):FireServer(unpack(args))
+   end,
+})
+
+local Section = Tab:CreateSection("Auto buy platform")
+-- Blackstone Platform
+local ButtonBlackstonePlatform = Tab:CreateButton({
+   Name = "Buy Blackstone Platform",
+   Callback = function()
+       local args = {"Blackstone Platform", 75}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseTool"):FireServer(unpack(args))
+   end,
+})
+
+-- Diorite Platform
+local ButtonDioritePlatform = Tab:CreateButton({
+   Name = "Buy Diorite Platform",
+   Callback = function()
+       local args = {"Diorite Platform", 75}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseTool"):FireServer(unpack(args))
+   end,
+})
+
+-- Granite Platform
+local ButtonGranitePlatform = Tab:CreateButton({
+   Name = "Buy Granite Platform",
+   Callback = function()
+       local args = {"Granite Platform", 75}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseTool"):FireServer(unpack(args))
+   end,
+})
+
+-- Stone Platform
+local ButtonStonePlatform = Tab:CreateButton({
+   Name = "Buy Stone Platform",
+   Callback = function()
+       local args = {"Stone Platform", 60}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseTool"):FireServer(unpack(args))
+   end,
+})
+
+-- Grass Platform
+local ButtonGrassPlatform = Tab:CreateButton({
+   Name = "Buy Grass Platform",
+   Callback = function()
+       local args = {"Grass Platform", 50}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseTool"):FireServer(unpack(args))
+   end,
+})
+
+-- Acacia Platform
+local ButtonAcaciaPlatform = Tab:CreateButton({
+   Name = "Buy Acacia Platform",
+   Callback = function()
+       local args = {"Acacia Platform", 25}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseTool"):FireServer(unpack(args))
+   end,
+})
+
+-- Bloodwood Platform
+local ButtonBloodwoodPlatform = Tab:CreateButton({
+   Name = "Buy Bloodwood Platform",
+   Callback = function()
+       local args = {"Bloodwood Platform", 25}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseTool"):FireServer(unpack(args))
+   end,
+})
+
+-- Cherry Platform
+local ButtonCherryPlatform = Tab:CreateButton({
+   Name = "Buy Cherry Platform",
+   Callback = function()
+       local args = {"Cherry Platform", 25}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseTool"):FireServer(unpack(args))
+   end,
+})
+
+-- Birch Platform
+local ButtonBirchPlatform = Tab:CreateButton({
+   Name = "Buy Birch Platform",
+   Callback = function()
+       local args = {"Birch Platform", 25}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseTool"):FireServer(unpack(args))
+   end,
+})
+
+-- Oak Platform
+local ButtonOakPlatform = Tab:CreateButton({
+   Name = "Buy Oak Platform",
+   Callback = function()
+       local args = {"Oak Platform", 25}
+       game:GetService("ReplicatedStorage"):WaitForChild("PurchaseTool"):FireServer(unpack(args))
+   end,
+})
+
+
+
+
+
