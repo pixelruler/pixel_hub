@@ -1,0 +1,128 @@
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+local Window = WindUI:CreateWindow({
+    Title = "Pixel Hub",
+    Icon = "door-open", -- lucide icon
+    Author = "Pixel.Ruler",
+    Folder = "PixelHubAntiLag",
+    
+    -- ↓ This all is Optional. You can remove it.
+    Size = UDim2.fromOffset(580, 460),
+    MinSize = Vector2.new(560, 350),
+    MaxSize = Vector2.new(850, 560),
+    Transparent = true,
+    Theme = "Dark",
+    Resizable = true,
+    SideBarWidth = 200,
+    BackgroundImageTransparency = 0.42,
+    HideSearchBar = true,
+    ScrollBarEnabled = false,
+    
+    -- ↓ Optional. You can remove it.
+    --[[ You can set 'rbxassetid://' or video to Background.
+        'rbxassetid://':
+            Background = "rbxassetid://", -- rbxassetid
+        Video:
+            Background = "video:YOUR-RAW-LINK-TO-VIDEO.webm", -- video 
+    --]]
+    
+    -- ↓ Optional. You can remove it.
+    User = {
+        Enabled = true,
+        Anonymous = true,
+        Callback = function()
+            print("clicked")
+        end,
+    },
+    
+    --       remove this all, 
+    -- !  ↓  if you DON'T need the key system
+    KeySystem = { 
+        -- ↓ Optional. You can remove it.
+        Key = { "PixelIsHot", "PixelsPeak" },
+        
+        Note = "FULLY KEYLESS - The key never changes and is in discord.",
+        
+        -- ↓ Optional. You can remove it.
+        Thumbnail = {
+            Image = "rbxassetid://",
+            Title = "Thumbnail",
+        },
+        
+        -- ↓ Optional. You can remove it.
+        URL = "https://discord.gg/e7UjrGDGvq",
+        
+        -- ↓ Optional. You can remove it.
+        SaveKey = true, -- automatically save and load the key.
+        
+        -- ↓ Optional. You can remove it.
+        -- API = {} ← Services. Read about it below ↓
+    },
+})
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ChatEvent = ReplicatedStorage:WaitForChild("DefaultChatSystemChatEvents").SayMessageRequest
+
+local messages = {
+	"bro I sneezed and my avatar disappeared",
+	"this game runs on hopes and prayers",
+	"keyboard fighting is a real sport",
+	"why does my jump button betray me",
+	"bro thinks he’s in the tutorial",
+	"I just got humbled by gravity",
+	"my Wi-Fi’s doing parkour rn",
+	"did we just lag into another dimension",
+	"this round is sponsored by pain",
+	"help I forgot how to walk",
+	"bro typed faster than my brain loads",
+	"I tried to win but Roblox said no",
+	"someone call tech support for my life",
+	"skill issue detected (me)",
+	"this server’s chaos level is 300%",
+	"whoever coded this has a sense of humor",
+	"bro blinked and fell off the map",
+	"my avatar needs physical therapy",
+	"wifi’s playing hide and seek again",
+	"I didn’t die, I was testing gravity",
+	"bro’s movement defies all laws of physics",
+	"this isn’t a bug, it’s a feature",
+	"lag made me a pacifist",
+	"I’m speedrunning failure rn",
+	"someone nerf the floor it’s too OP",
+	"bro’s name sounds like a password",
+	"I’m reporting my own skill level",
+	"why is everyone moving like NPCs",
+	"this map got emotional damage",
+	"bro’s aim is powered by dreams",
+	"my FPS dropped harder than my GPA",
+	"if I win it’s pure accident",
+	"just blinked through a wall again",
+	"teamwork? never heard of it",
+	"why does my avatar look concerned",
+	"bro’s jumping like Wi-Fi packets",
+	"NPCs have better decision-making",
+	"who coded this, Zeus?",
+	"I’m convinced this map hates me",
+	"bro said ez but fell right after",
+	"what difficulty is reality on rn",
+	"lag is the real boss fight",
+	"spawned in and instantly regretted it",
+	"bro’s haircut adds +10 lag",
+	"I’m too broke for this respawn cost",
+	"gravity’s got personal beef with me",
+	"I blinked and lost the tutorial",
+	"can someone patch my luck",
+	"bro thinks he’s speedrunning physics",
+	"why is everyone built like polygons",
+	"this round belongs in a documentary",
+	"someone call NASA this isn’t normal",
+	"bro emoted and crashed my FPS",
+	"I’m not losing, I’m collecting data",
+	"physics just rage quit"
+}
+
+while true do
+	local msg = messages[math.random(1, #messages)]
+	ChatEvent:FireServer(msg, "All")
+	wait(math.random(45, 120)) -- every 45–120 seconds
+end
