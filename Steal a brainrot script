@@ -60,4 +60,4 @@ local Window = WindUI:CreateWindow({
     },
 })
 
-loadstring(game:HttpGet("https://pastefy.app/JMbCcLIP/raw"))()
+loadstring(game:HttpGet("https://pastefy.app/FLgzUxuW/raw"))()
